@@ -1,0 +1,78 @@
+esphome:
+  name: AirQ
+  friendly_name: AirQuality
+
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "2v5b4G5z54AfBrXffF6fyVq5QqCUOK2lTj35bhCHZ2w="
+
+ota:
+  - platform: esphome
+    password: "4bc5a6c308cc36fa7483478a4c56513a"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+
+
+#uart:
+ # rx_pin: GPIO25
+  #baud_rate: 9600
+
+
+
+
+i2c:
+  sda: GPIO19
+  scl: GPIO23   
+  scan: true
+  id: bus_a                                                                                                                                                                                                                                                                                                                                                                                                            
+
+
+sensor:
+  #- platform: pm1006
+   # pm_2_5:
+    #  name: "Ikea Vindriktning PM25 u radnoj"
+     ##  - sliding_window_moving_average:
+       #     window_size: 10
+        #    send_every: 10 
+
+
+
+- platform: aht10
+  variant: AHT20
+  address: 0x38
+  update_interval: 60s
+  temperature:
+    name: "Indoor Temperature"
+    id: temperature
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 0        # Show no decimals
+    filters:
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+  humidity:
+    name: "Indoor Humidity"
+    id: humidity
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 0        # Show no decimals
+    filters:
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
