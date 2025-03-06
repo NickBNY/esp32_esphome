@@ -14,11 +14,11 @@ logger:
 # Enable Home Assistant API
 api:
   encryption:
-    key: "2v5b4G5z54AfBrXffF6fyVq5QqCUOK2lTj35bhCHZ2w="
+    key: ""
 
 ota:
   - platform: esphome
-    password: "4bc5a6c308cc36fa7483478a4c56513a"
+    password: ""
 
 wifi:
   ssid: !secret wifi_ssid
@@ -48,26 +48,36 @@ uart:
 
 
 
-i2c:
-  #sda1: GPIO19
- # scl1: GPIO23   
-  scan: true
-  id: bus_a                                                                                                                                                                                                                                                                                                                                                                                                            
-  sda: GPIO33
-  scl: GPIO22
+#i2c:
+# - id: bus_a                                                                                                                                                                                                                                                                                                                                                                                                            
+##    sda: GPIO33
+#   scl: GPIO22
+#    scan: true
+  
  # scan: True
-  frequency: 300kHz
- # id: bus_b
+ # frequency: 300kHz
+ ## - id: bus_b
+ # sda1: GPIO19
+ # scl1: GPIO23  
 time:
   - platform: homeassistant
     id: esptime
 
-
+i2c:
+  - id: bus_a
+    sda: GPIO33
+    scl: GPIO22
+    scan: true
+  - id: bus_b
+    sda: GPIO19
+    scl: GPIO23
+    scan: true
 
 sensor:
 
 - platform: aht10
   variant: AHT20
+  i2c_id: bus_b
   address: 0x38
   update_interval: 60s
   temperature:
@@ -94,6 +104,7 @@ sensor:
           send_first_at: 1
           
 - platform: ens160_i2c
+  i2c_id: bus_b
   eco2:
       name: "CO2"
   tvoc:
@@ -136,13 +147,19 @@ sensor:
   id: temp
   internal: true
   accuracy_decimals: 0 
+
+- platform: homeassistant
+  id: pm
+  name: pm
+  entity_id: sensor.fireplace_ikea_pm25
+  internal: true 
        
 text_sensor:
   - platform: homeassistant
     id: current 
     entity_id: weather.266_home
     internal: true
-    
+ 
 
 
 
@@ -151,6 +168,7 @@ text_sensor:
 
 display:
   - platform: ssd1306_i2c
+    i2c_id: bus_a
     model: "SH1106 128x64"
     reset_pin: GPIO26
     address: 0x3C
@@ -176,4 +194,6 @@ display:
       it.printf(95, 0, id(font1), TextAlign::TOP_LEFT, "w: %.1f", id(gust).state); 
 
       it.printf(58, 0, id(font1), TextAlign::TOP_CENTER, "%.0f°", id(temp).state);
+
+      it.printf(0, 15, id(font1), TextAlign::TOP_LEFT, "%.1f", id(pm).state); 
       }
