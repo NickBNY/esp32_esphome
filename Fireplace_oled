@@ -30,144 +30,193 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+
+
+
+
 ################################################
 ############# START ############################
 ################################################
 
+# Define fonts to be used on the display with different sizes
 font:
-  - file: 'ARIAL.TTF'
+  - file: "ARIAL.TTF"
     id: font1
-    size: 10
-
-  - file: 'ARIAL.TTF'
+    size: 12
+  - file: "ARIAL.TTF"
     id: font2
     size: 36
-
-  - file: 'ARIAL.TTF'
+  - file: "ARIAL.TTF"
     id: font3
     size: 14
+  - file: "ARIAL.TTF"
+    id: font4
+    size: 8
 
-################################################
-#                  SWITCHES                    #
-################################################
-switch:
-  - platform: gpio
-    name: "Relay 1"
-    id: fireplace_on_off
-    pin:
-      number: GPIO32
-      inverted: false
-    restore_mode: RESTORE_DEFAULT_OFF
+# UART configuration (example: for debugging or additional sensors)
+uart:
+  rx_pin: GPIO25
+  baud_rate: 9600
 
-  - platform: gpio
-    name: "Relay 2"
-    id: fireplace_fan
-    pin:
-      number: GPIO26
-      inverted: false
-    restore_mode: RESTORE_DEFAULT_OFF
-
-################################################
-#                 BINARY SENSORS               #
-################################################
-binary_sensor:
-  - platform: gpio
-    name: "Fireplace Control Button"
-    id: toggle_button
-    pin:
-      number: GPIO23
-      # If you use an internal pull-up resistor, uncomment below:
-      # mode: INPUT_PULLUP
-      #pullup: true
-      inverted: true
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      # Call the same script from both buttons
-      # Turn on both relays
-          - logger.log: "BUTTON press"
-          - switch.toggle: fireplace_on_off
-          - delay: 2s
-          - switch.toggle: fireplace_fan
-          # Wait 30 minutes, then turn them off
-          - delay: 1min
-          - logger.log: "30 minutes elapsed: Turning OFF both relays"
-          - switch.turn_off: fireplace_on_off
-          - delay: 2s
-          - switch.turn_off: fireplace_fan
-
-
-# switch:
-#  - platform: gpio
-#    pin: GPIO22
-#    name: "Garage Door Open Switch"
-#    id: open_switch
-#  - platform: gpio
-#    pin: GPIOXX
-#    name: "Garage Door Close Switch"
-#    id: close_switch
-
-
-################################################
-#                LED OUTPUT/ LIGHT             #
-################################################
-output:
-  - platform: gpio
-    pin: GPIO33
-    id: led_output
-
-light:
-  - platform: neopixelbus
-    id: built_in_led
-    name: "Built-in LED"
-    pin: GPIO27
-    num_leds: 1
-    variant: SK6812
-    entity_category: diagnostic
-
+# Synchronize time with Home Assistant
 time:
   - platform: homeassistant
     id: esptime
 
+################################################
+#                     I2C                      #
+################################################
+# Define two separate I2C buses for different peripherals
+
+# Bus A: Used for the SSD1306 display
+i2c:
+  - id: bus_a
+    sda: GPIO33
+    scl: GPIO22
+    scan: true
+    frequency: 300kHz
+
+  # Bus B: Used for sensors (e.g. AHT10 and ENS160)
+  - id: bus_b
+    sda: GPIO19
+    scl: GPIO23
+    scan: true
+    # Uncomment and adjust the options below if needed:
+    # active: true
+    # interval: 1100ms
+    # window: 1100ms
+
+################################################
+#                   SENSORS                    #
+################################################
 sensor:
+  # AHT10/AHT20 sensor for indoor temperature and humidity
+  - platform: aht10
+    variant: AHT20
+    i2c_id: bus_b
+    address: 0x38
+    update_interval: 60s
+    temperature:
+      name: "Indoor Temperature"
+      id: temperature
+      device_class: temperature
+      state_class: measurement
+      accuracy_decimals: 0   # Show no decimals
+      filters:
+        - median:
+            window_size: 5
+            send_every: 5
+            send_first_at: 1
+    humidity:
+      name: "Indoor Humidity"
+      id: humidity
+      device_class: humidity
+      state_class: measurement
+      accuracy_decimals: 0   # Show no decimals
+      filters:
+        - median:
+            window_size: 5
+            send_every: 5
+            send_first_at: 1
+
+  # ENS160 sensor for CO2, VOC, and overall air quality (AQI)
+  - platform: ens160_i2c
+    i2c_id: bus_b
+    update_interval: 60s
+    address: 0x53
+    eco2:
+      name: "CO2"
+    tvoc:
+      name: "VOC"
+    aqi:
+      name: "Air Quality"
+
+  # PM1006 sensor for PM2.5 measurements
+  - platform: pm1006
+    pm_2_5:
+      name: "Ikea PM25"
+      # Uncomment below to enable a sliding window moving average filter:
+      # sliding_window_moving_average:
+      #   window_size: 10
+      #   send_every: 10
+
+  # Home Assistant sensors integrated for additional data
+
   - platform: homeassistant
     id: inside_temperature
     entity_id: sensor.hot_tub_current_temperature
     internal: true
+    accuracy_decimals: 0
 
   - platform: homeassistant
     id: outside_temperature
     entity_id: sensor.hot_tub_target_temperature
-    internal: true 
-    
-  - platform: homeassistant
-    entity_id: sensor.266_home_condition_day_1
-    name: "266_home_condition_day_1"
-    id: current     
-i2c:
-  sda: GPIO21
-  scl: GPIO25
-  scan: false
+    internal: true
+    accuracy_decimals: 0
 
+  - platform: homeassistant
+    id: gust
+    entity_id: sensor.266_home_wind
+    internal: true
+    accuracy_decimals: 0
+
+  - platform: homeassistant
+    id: temp
+    name: "temp"
+    entity_id: sensor.266_home_realfeel_temperature
+    internal: true
+    accuracy_decimals: 0
+
+  - platform: homeassistant
+    id: pm
+    name: "pm"
+    entity_id: sensor.fireplace_ikea_pm25
+    internal: true
+
+################################################
+#                TEXT SENSORS                #
+################################################
+text_sensor:
+  - platform: homeassistant
+    id: current
+    entity_id: weather.266_home
+    internal: true
+
+################################################
+#                  DISPLAY                   #
+################################################
+# SSD1306 display configuration using I2C bus A.
 display:
   - platform: ssd1306_i2c
+    i2c_id: bus_a
     model: "SH1106 128x64"
-    reset_pin: GPIO22
+    reset_pin: GPIO26
     address: 0x3C
     lambda: |-
-      // Print "Mitt Smarta Hus" in top center.
-      // it.printf(64, 0, id(font1), TextAlign::TOP_CENTER, "%s", id(current).state);
-
-      // Print time in HH:MM format
+      // Display the current weather text (centered)
+      it.printf(64, 15, id(font1), TextAlign::TOP_CENTER, "%s", id(current).state.c_str());
+      
+      // Display the current time in HH:MM format (bottom-left)
       it.strftime(0, 60, id(font2), TextAlign::BASELINE_LEFT, "%H:%M", id(esptime).now());
-
-      // Print inside temperature (from homeassistant sensor)
+      
+      // Display the indoor temperature if available (top-right)
       if (id(inside_temperature).has_state()) {
-        it.printf(127, 23, id(font3), TextAlign::TOP_RIGHT , "%.1f°", id(inside_temperature).state);
+        it.printf(127, 30, id(font3), TextAlign::TOP_RIGHT, "%.0f°", id(inside_temperature).state);
       }
-
-      // Print outside temperature (from homeassistant sensor)
+      
+      // Display the outside temperature if available (bottom-right)
       if (id(outside_temperature).has_state()) {
-        it.printf(127, 60, id(font3), TextAlign::BASELINE_RIGHT , "%.1f°", id(outside_temperature).state);
+        it.printf(127, 60, id(font3), TextAlign::BASELINE_RIGHT, "%.0f°", id(outside_temperature).state);
       }
+      
+      // Display the current date (month/day) at the top-left
+      it.strftime(0, 0, id(font1), TextAlign::TOP_LEFT, "%m/%d", id(esptime).now());
+      
+      // Display wind information (gust) near the top-left
+      it.printf(95, 0, id(font1), TextAlign::TOP_LEFT, "w: %.1f", id(gust).state);
+      
+      // Display real feel temperature (temp) at the center-top
+      it.printf(58, 0, id(font1), TextAlign::TOP_CENTER, "%.0f°", id(temp).state);
+      
+      // Display PM2.5 value at the top-left (overlapping text may occur; adjust coordinates as needed)
+      it.printf(0, 15, id(font1), TextAlign::TOP_LEFT, "%.1f", id(pm).state);
